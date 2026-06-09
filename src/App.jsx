@@ -4,11 +4,26 @@ import {
   computeKnockoutMatches,
   isGroupPhaseComplete,
 } from './tournament'
+import { can, isValidRole } from './users'
+import Login from './components/Login'
 import Teams from './components/Teams'
 import Spielplan from './components/Spielplan'
 import Tabelle from './components/Tabelle'
 
 const STORAGE_KEY = 'bierpong-turnier-v2'
+const AUTH_KEY = 'bierpong-auth-v1'
+
+function loadAuth() {
+  try {
+    const raw = localStorage.getItem(AUTH_KEY)
+    if (!raw) return null
+    const a = JSON.parse(raw)
+    // Sitzung nur akzeptieren, wenn die Rolle noch in users.js existiert.
+    return a && a.username && isValidRole(a.role) ? a : null
+  } catch {
+    return null
+  }
+}
 
 function loadState() {
   try {
@@ -36,18 +51,32 @@ function shuffle(arr) {
 
 export default function App() {
   const [state, setState] = useState(() => loadState() || emptyState)
+  const [auth, setAuth] = useState(loadAuth)
   const [tab, setTab] = useState('teams')
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
   }, [state])
 
+  useEffect(() => {
+    if (auth) localStorage.setItem(AUTH_KEY, JSON.stringify(auth))
+    else localStorage.removeItem(AUTH_KEY)
+  }, [auth])
+
+  const logout = () => setAuth(null)
+
   // Falls noch nicht ausgelost wurde, bleibt nur der Teams-Reiter aktiv.
   useEffect(() => {
     if (!state.drawn && tab !== 'teams') setTab('teams')
   }, [state.drawn, tab])
 
+  const role = auth?.role
+  const mayEditTeams = can.editTeams(role)
+  const mayReset = can.reset(role)
+  const mayEnterResults = can.enterResults(role)
+
   const addPlayer = (name) => {
+    if (!mayEditTeams) return
     const n = name.trim()
     if (!n) return
     setState((prev) => {
@@ -58,12 +87,14 @@ export default function App() {
   }
 
   const removePlayer = (name) => {
+    if (!mayEditTeams) return
     setState((prev) =>
       prev.drawn ? prev : { ...prev, players: prev.players.filter((p) => p !== name) },
     )
   }
 
   const drawTeams = () => {
+    if (!mayEditTeams) return
     setState((prev) => {
       if (prev.drawn || prev.players.length !== 20) return prev
       const shuffled = shuffle(prev.players)
@@ -78,6 +109,7 @@ export default function App() {
 
   // Tauscht zwei Spieler-Slots (auch innerhalb desselben Teams).
   const swapPlayers = (a, b) => {
+    if (!mayEditTeams) return
     if (a.teamId === b.teamId && a.slot === b.slot) return
     setState((prev) => {
       const teams = { ...prev.teams }
@@ -99,6 +131,7 @@ export default function App() {
   }
 
   const setResult = (matchId, winnerId) => {
+    if (!mayEnterResults) return
     setState((prev) => {
       const results = { ...prev.results }
       if (results[matchId] === winnerId) {
@@ -118,6 +151,7 @@ export default function App() {
   }
 
   const resetTournament = () => {
+    if (!mayReset) return
     if (window.confirm('Turnier wirklich komplett zurücksetzen? Alle Teams und Ergebnisse gehen verloren.')) {
       setState(emptyState)
       setTab('teams')
@@ -132,13 +166,25 @@ export default function App() {
   const groupComplete = useMemo(() => isGroupPhaseComplete(state.results), [state.results])
   const koMatches = useMemo(() => computeKnockoutMatches(state.results), [state.results])
 
+  if (!auth) {
+    return <Login onLogin={setAuth} />
+  }
+
   return (
     <div className="app">
       <header className="topbar">
         <h1>🍺 Bierpong Turnier 🏓</h1>
-        <button className="reset-btn" onClick={resetTournament}>
-          ⟳ Reset
-        </button>
+        <div className="topbar-actions">
+          <span className="user-badge">👤 {auth.label}</span>
+          {mayReset && (
+            <button className="reset-btn" onClick={resetTournament}>
+              ⟳ Reset
+            </button>
+          )}
+          <button className="logout-btn" onClick={logout}>
+            Abmelden
+          </button>
+        </div>
       </header>
 
       <nav className="tabs">
@@ -172,6 +218,7 @@ export default function App() {
             players={state.players}
             drawn={state.drawn}
             teams={state.teams}
+            canEdit={mayEditTeams}
             onAddPlayer={addPlayer}
             onRemovePlayer={removePlayer}
             onDraw={drawTeams}

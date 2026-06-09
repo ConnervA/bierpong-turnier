@@ -66,6 +66,21 @@ button {
   letter-spacing: 0.5px;
 }
 
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.user-badge {
+  color: var(--muted);
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: 999px;
+  padding: 0.4rem 0.9rem;
+  font-weight: bold;
+  font-size: 0.9rem;
+}
 .reset-btn {
   background: rgba(255, 77, 109, 0.15);
   color: var(--red);
@@ -78,6 +93,74 @@ button {
 .reset-btn:hover {
   background: var(--red);
   color: #fff;
+}
+.logout-btn {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--card-border);
+  border-radius: 999px;
+  padding: 0.5rem 1rem;
+  font-weight: bold;
+  transition: all 0.15s;
+}
+.logout-btn:hover {
+  color: var(--text);
+  border-color: var(--text);
+}
+
+/* ---------- Login ---------- */
+.login {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem;
+}
+.login-card {
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: 20px;
+  padding: 2rem;
+  max-width: 400px;
+  width: 100%;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+}
+.login-card h1 {
+  text-align: center;
+  font-size: clamp(1.6rem, 5vw, 2.2rem);
+  background: linear-gradient(90deg, var(--gold), var(--amber), var(--pink));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.login-card .subtitle {
+  text-align: center;
+}
+.field {
+  display: block;
+  margin-bottom: 0.9rem;
+}
+.field span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: bold;
+  margin-bottom: 0.3rem;
+}
+.field input {
+  width: 100%;
+  padding: 0.7rem 0.9rem;
+  border-radius: 10px;
+  border: 1px solid var(--card-border);
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--text);
+  font-size: 1rem;
+}
+.field input:focus {
+  outline: none;
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(255, 217, 61, 0.2);
 }
 
 /* ---------- Tabs ---------- */
@@ -524,6 +607,13 @@ tbody tr.qualified {
   border-color: var(--pink);
   background: rgba(255, 46, 139, 0.25);
   box-shadow: 0 0 0 3px rgba(255, 46, 139, 0.25);
+}
+.player-chip.static {
+  cursor: default;
+}
+.player-chip.static:hover {
+  border-color: var(--card-border);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 /* ---------- Responsive ---------- */

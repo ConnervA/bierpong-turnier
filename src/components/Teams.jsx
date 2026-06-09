@@ -7,6 +7,7 @@ export default function Teams({
   players,
   drawn,
   teams,
+  canEdit,
   onAddPlayer,
   onRemovePlayer,
   onDraw,
@@ -22,6 +23,7 @@ export default function Teams({
   }
 
   const handleChipClick = (teamId, slot) => {
+    if (!canEdit) return
     if (!selected) {
       setSelected({ teamId, slot })
       return
@@ -37,8 +39,23 @@ export default function Teams({
   const isSelected = (teamId, slot) =>
     selected && selected.teamId === teamId && selected.slot === slot
 
-  // ---------- Vor der Auslosung: Spieler sammeln ----------
+  // ---------- Vor der Auslosung ----------
   if (!drawn) {
+    // Eingeschränkte User dürfen nicht auslosen → Hinweis statt Eingabe.
+    if (!canEdit) {
+      return (
+        <div className="teams-setup">
+          <div className="teams-card">
+            <h2>👥 Teams</h2>
+            <p className="locked">
+              🔒 Die Teams wurden noch nicht ausgelost. Das übernimmt der Organisator —
+              danach erscheinen sie hier.
+            </p>
+          </div>
+        </div>
+      )
+    }
+
     const duplicateHint =
       input.trim() &&
       players.some((p) => p.toLowerCase() === input.trim().toLowerCase())
@@ -109,15 +126,17 @@ export default function Teams({
     )
   }
 
-  // ---------- Nach der Auslosung: Übersicht + Tauschen ----------
+  // ---------- Nach der Auslosung: Übersicht (+ Tauschen nur für Admin) ----------
   return (
     <div className="teams-overview">
       <div className="teams-toolbar">
         <h2>👥 Teams</h2>
         <p className="swap-hint">
-          {selected
-            ? '↔️ Jetzt einen zweiten Spieler anklicken zum Tauschen (oder denselben zum Abbrechen).'
-            : 'Tipp: Zwei Spieler anklicken, um sie zu tauschen — falls jemand nicht kann.'}
+          {!canEdit
+            ? '🔒 Nur der Organisator kann Teams ändern.'
+            : selected
+              ? '↔️ Jetzt einen zweiten Spieler anklicken zum Tauschen (oder denselben zum Abbrechen).'
+              : 'Tipp: Zwei Spieler anklicken, um sie zu tauschen — falls jemand nicht kann.'}
         </p>
       </div>
 
@@ -129,15 +148,21 @@ export default function Teams({
               <div className="team-card" key={id}>
                 <span className="team-tag">Team {g}{idx + 1}</span>
                 <div className="team-players">
-                  {[0, 1].map((slot) => (
-                    <button
-                      key={slot}
-                      className={isSelected(id, slot) ? 'player-chip selected' : 'player-chip'}
-                      onClick={() => handleChipClick(id, slot)}
-                    >
-                      {teams[id][slot]}
-                    </button>
-                  ))}
+                  {[0, 1].map((slot) =>
+                    canEdit ? (
+                      <button
+                        key={slot}
+                        className={isSelected(id, slot) ? 'player-chip selected' : 'player-chip'}
+                        onClick={() => handleChipClick(id, slot)}
+                      >
+                        {teams[id][slot]}
+                      </button>
+                    ) : (
+                      <span key={slot} className="player-chip static">
+                        {teams[id][slot]}
+                      </span>
+                    ),
+                  )}
                 </div>
               </div>
             ))}
