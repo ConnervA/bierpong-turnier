@@ -318,6 +318,20 @@ button {
 .ko-row .match {
   margin-bottom: 0;
 }
+.ko-bye {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.ko-bye-team {
+  font-weight: bold;
+  color: var(--green);
+}
+.ko-bye-note {
+  color: var(--muted);
+  font-style: italic;
+  font-size: 0.85rem;
+}
 
 /* ---------- Tabelle ---------- */
 table {
@@ -614,6 +628,11 @@ tbody tr.qualified {
 .player-chip.static:hover {
   border-color: var(--card-border);
   background: rgba(255, 255, 255, 0.08);
+}
+.solo-note {
+  color: var(--amber);
+  font-style: italic;
+  font-size: 0.8rem;
 }
 
 /* ---------- Responsive ---------- */

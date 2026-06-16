@@ -1,34 +1,32 @@
-import { GROUPS, computeStandings } from '../tournament'
+import { computeStandings } from '../tournament'
 
 const medal = (rank) => (rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank)
 
-// Endplatzierung aus den KO-Ergebnissen ableiten (nur wenn entschieden).
+// Endplatzierung aus den KO-Ergebnissen ableiten (nur wenn alles entschieden).
+// Jedes KO-Spiel trägt `places`: die Plätze, die es vergibt. Halbfinals haben
+// keine `places` (sie leiten nur weiter), Bye-Einträge vergeben einen Platz.
 function finalRanking(koMatches, results, nameOf) {
   if (!koMatches) return null
-  const byId = Object.fromEntries(koMatches.map((m) => [m.id, m]))
-  const pair = (matchId, hiRank) => {
-    const m = byId[matchId]
+  const ranked = []
+  for (const m of koMatches) {
+    if (!m.places) continue // Halbfinale
+    if (m.bye) {
+      ranked.push({ rank: m.places[0], name: nameOf(m.home) })
+      continue
+    }
     const w = results[m.id]
-    if (!w || !m.home || !m.away) return null
+    if (!w || !m.home || !m.away) return null // noch nicht entschieden
     const l = w === m.home ? m.away : m.home
-    return [
-      { rank: hiRank, name: nameOf(w) },
-      { rank: hiRank + 1, name: nameOf(l) },
-    ]
+    ranked.push({ rank: m.places[0], name: nameOf(w) })
+    ranked.push({ rank: m.places[1], name: nameOf(l) })
   }
-  const blocks = [
-    pair('KO-FINAL', 1),
-    pair('KO-THIRD', 3),
-    pair('KO-P5', 5),
-    pair('KO-P7', 7),
-    pair('KO-P9', 9),
-  ]
-  if (blocks.some((b) => b === null)) return null
-  return blocks.flat()
+  if (ranked.length === 0) return null
+  return ranked.sort((a, b) => a.rank - b.rank)
 }
 
-export default function Tabelle({ results, nameOf, koMatches }) {
+export default function Tabelle({ groups, results, nameOf, koMatches }) {
   const ranking = finalRanking(koMatches, results, nameOf)
+  const multiGroup = groups.length > 1
 
   return (
     <div className="tabelle">
@@ -47,11 +45,11 @@ export default function Tabelle({ results, nameOf, koMatches }) {
       )}
 
       <div className="group-tables">
-        {GROUPS.map((g) => {
+        {groups.map((g) => {
           const standings = computeStandings(g, results)
           return (
-            <section className="group-table" key={g}>
-              <h2>Gruppe {g}</h2>
+            <section className="group-table" key={g.name}>
+              <h2>{multiGroup ? `Gruppe ${g.name}` : 'Tabelle'}</h2>
               <table>
                 <thead>
                   <tr>
@@ -76,7 +74,9 @@ export default function Tabelle({ results, nameOf, koMatches }) {
                   ))}
                 </tbody>
               </table>
-              <p className="legend">Top 2 (grün) erreichen das Halbfinale.</p>
+              <p className="legend">
+                Top 2 (grün) erreichen {multiGroup ? 'das Halbfinale' : 'das Finale'}.
+              </p>
             </section>
           )
         })}

@@ -1,29 +1,39 @@
-import { GROUPS, GROUP_MATCHES } from '../tournament'
 import MatchCard from './MatchCard'
 
-export default function Spielplan({ results, nameOf, groupComplete, koMatches, onResult }) {
-  const playedCount = GROUP_MATCHES.filter((m) => results[m.id]).length
+export default function Spielplan({
+  groups,
+  matches,
+  results,
+  nameOf,
+  groupComplete,
+  koMatches,
+  onResult,
+}) {
+  const playedCount = matches.filter((m) => results[m.id]).length
+  const multiGroup = groups.length > 1
 
   return (
     <div className="spielplan">
       <section className="phase">
         <div className="phase-head">
           <h2>Gruppenphase</h2>
-          <span className="progress">{playedCount}/{GROUP_MATCHES.length} Spiele</span>
+          <span className="progress">{playedCount}/{matches.length} Spiele</span>
         </div>
         <div className="groups">
-          {GROUPS.map((g) => (
-            <div className="group-block" key={g}>
-              <h3>Gruppe {g}</h3>
-              {GROUP_MATCHES.filter((m) => m.group === g).map((m) => (
-                <MatchCard
-                  key={m.id}
-                  match={m}
-                  results={results}
-                  nameOf={nameOf}
-                  onResult={onResult}
-                />
-              ))}
+          {groups.map((g) => (
+            <div className="group-block" key={g.name}>
+              <h3>{multiGroup ? `Gruppe ${g.name}` : 'Alle Spiele'}</h3>
+              {matches
+                .filter((m) => m.group === g.name)
+                .map((m) => (
+                  <MatchCard
+                    key={m.id}
+                    match={m}
+                    results={results}
+                    nameOf={nameOf}
+                    onResult={onResult}
+                  />
+                ))}
             </div>
           ))}
         </div>
@@ -41,12 +51,19 @@ export default function Spielplan({ results, nameOf, groupComplete, koMatches, o
             {koMatches.map((m) => (
               <div className="ko-row" key={m.id}>
                 <span className="ko-label">{m.label}</span>
-                <MatchCard
-                  match={m}
-                  results={results}
-                  nameOf={nameOf}
-                  onResult={onResult}
-                />
+                {m.bye ? (
+                  <div className="ko-bye">
+                    <span className="ko-bye-team">{nameOf(m.home)}</span>
+                    <span className="ko-bye-note">kampflos platziert</span>
+                  </div>
+                ) : (
+                  <MatchCard
+                    match={m}
+                    results={results}
+                    nameOf={nameOf}
+                    onResult={onResult}
+                  />
+                )}
               </div>
             ))}
           </div>

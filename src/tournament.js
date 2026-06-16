@@ -1,57 +1,85 @@
 // Reine Logik des Turniers — keine React-Abhängigkeiten.
 
-export const GROUPS = ['A', 'B']
-export const TEAMS_PER_GROUP = 5
+export const MAX_PLAYERS = 20
+export const MIN_PLAYERS = 3 // mindestens 2 Teams nötig, damit gespielt werden kann
 export const POINTS_PER_WIN = 3
 
-// Feste Team-IDs: A1..A5, B1..B5. Die Namen sind frei editierbar,
-// die ID bleibt als stabile Identität über das ganze Turnier erhalten.
-export function teamIds(group) {
-  return Array.from({ length: TEAMS_PER_GROUP }, (_, i) => `${group}${i + 1}`)
+// Wie viele Teams ergeben sich aus den Spielern? Es werden Paare gebildet;
+// bei ungerader Anzahl spielt eine Person allein (Team mit nur einem Spieler).
+export function neededTeams(playerCount) {
+  return Math.ceil(playerCount / 2)
 }
 
-export function allTeamIds() {
-  return GROUPS.flatMap(teamIds)
+function makeIds(group, n) {
+  return Array.from({ length: n }, (_, i) => `${group}${i + 1}`)
 }
 
-// Feste Spielreihenfolge für 5 Teams (Index 0..4), bei der nie zwei
-// aufeinanderfolgende Partien ein gemeinsames Team haben — kein Team
-// muss also doppelt hintereinander spielen. (Hamiltonpfad im Petersen-Graph
-// über alle 10 Paarungen von K5.)
-const MATCH_ORDER = [
-  [0, 1], [2, 3], [0, 4], [1, 2], [3, 4],
-  [0, 2], [1, 3], [2, 4], [0, 3], [1, 4],
-]
-
-// Round-Robin: jedes Team gegen jedes andere in der Gruppe.
-export function generateGroupMatches() {
-  const matches = []
-  for (const group of GROUPS) {
-    const ids = teamIds(group)
-    for (const [i, j] of MATCH_ORDER) {
-      matches.push({
-        id: `G-${ids[i]}-${ids[j]}`,
-        group,
-        home: ids[i],
-        away: ids[j],
-      })
-    }
+// Gruppen-Layout aus der Teamzahl ableiten.
+//  - bis 3 Teams: eine einzige Gruppe (für 2 Gruppen wären es zu wenige)
+//  - ab 4 Teams: zwei möglichst gleich große Gruppen (z. B. 7 → 4 und 3)
+// Liefert [{ name, teamIds }].
+export function groupLayout(numTeams) {
+  if (numTeams <= 0) return []
+  if (numTeams <= 3) {
+    return [{ name: 'A', teamIds: makeIds('A', numTeams) }]
   }
-  return matches
+  const nA = Math.ceil(numTeams / 2)
+  const nB = numTeams - nA
+  return [
+    { name: 'A', teamIds: makeIds('A', nA) },
+    { name: 'B', teamIds: makeIds('B', nB) },
+  ]
 }
 
-export const GROUP_MATCHES = generateGroupMatches()
+// Round-Robin per Kreismethode: jedes Team gegen jedes andere. Innerhalb
+// einer Runde spielt kein Team doppelt, dadurch muss kaum ein Team zweimal
+// direkt hintereinander ran. Funktioniert für beliebig viele Teams.
+function roundRobinPairs(ids) {
+  if (ids.length < 2) return []
+  const arr = [...ids]
+  if (arr.length % 2 === 1) arr.push(null) // "Freilos" auffüllen für gerade Anzahl
+  const m = arr.length
+  const half = m / 2
+  let list = [...arr]
+  const pairs = []
+  for (let r = 0; r < m - 1; r++) {
+    for (let i = 0; i < half; i++) {
+      const home = list[i]
+      const away = list[m - 1 - i]
+      if (home !== null && away !== null) pairs.push([home, away])
+    }
+    // Erste Position bleibt fest, der Rest rotiert um eins.
+    const [fixed, ...rest] = list
+    rest.unshift(rest.pop())
+    list = [fixed, ...rest]
+  }
+  return pairs
+}
 
-// Tabelle einer Gruppe aus den Ergebnissen berechnen (sortiert).
+function matchesForGroup(group) {
+  return roundRobinPairs(group.teamIds).map(([home, away]) => ({
+    id: `G-${home}-${away}`,
+    group: group.name,
+    home,
+    away,
+  }))
+}
+
+// Alle Gruppenspiele für ein Layout erzeugen.
+export function groupMatches(groups) {
+  return groups.flatMap(matchesForGroup)
+}
+
+// Tabelle einer Gruppe aus den Ergebnissen berechnen (sortiert, mit Rang).
 export function computeStandings(group, results) {
-  const ids = teamIds(group)
+  const ids = group.teamIds
+  const matches = matchesForGroup(group)
   const stats = {}
   for (const id of ids) {
     stats[id] = { id, played: 0, wins: 0, losses: 0, points: 0 }
   }
 
-  for (const m of GROUP_MATCHES) {
-    if (m.group !== group) continue
+  for (const m of matches) {
     const winner = results[m.id]
     if (!winner) continue
     const loser = winner === m.home ? m.away : m.home
@@ -65,8 +93,7 @@ export function computeStandings(group, results) {
   // Direkter Vergleich (Head-to-Head) als Tiebreaker zwischen Punktgleichen.
   const h2hPoints = (id, tiedIds) => {
     let pts = 0
-    for (const m of GROUP_MATCHES) {
-      if (m.group !== group) continue
+    for (const m of matches) {
       if (![m.home, m.away].includes(id)) continue
       const opp = m.home === id ? m.away : m.home
       if (!tiedIds.includes(opp)) continue
@@ -86,20 +113,19 @@ export function computeStandings(group, results) {
   return ordered.map((s, i) => ({ ...s, rank: i + 1 }))
 }
 
-// Sind alle Gruppenspiele gespielt?
-export function isGroupPhaseComplete(results) {
-  return GROUP_MATCHES.every((m) => results[m.id])
+// Sind alle Gruppenspiele gespielt? (Leeres Layout zählt nicht als fertig.)
+export function isGroupPhaseComplete(groups, results) {
+  const ms = groupMatches(groups)
+  return ms.length > 0 && ms.every((m) => results[m.id])
 }
 
-// KO-Spiele aus den Endplatzierungen + KO-Ergebnissen ableiten.
-// Liefert eine Liste mit aufgelösten Team-IDs (oder null wenn noch offen).
-export function computeKnockoutMatches(results) {
-  if (!isGroupPhaseComplete(results)) return null
-
-  const a = computeStandings('A', results) // rank 1..5
-  const b = computeStandings('B', results)
-  const A = (rank) => a[rank - 1].id
-  const B = (rank) => b[rank - 1].id
+// KO-Spiele + Platzierungsspiele aus den Gruppentabellen ableiten.
+// Jedes Spiel trägt `places`: die Plätze, die es entscheidet (Halbfinale: keine,
+// da es nur ins Finale/Spiel-um-3 weiterleitet). `bye: true` markiert ein Team,
+// das seinen Platz kampflos bekommt (wenn eine Gruppe ein Team mehr hat).
+// Liefert null, solange die Gruppenphase nicht abgeschlossen ist.
+export function computeKnockoutMatches(groups, results) {
+  if (!isGroupPhaseComplete(groups, results)) return null
 
   const winnerOf = (id) => results[id] || null
   const loserOf = (matchId, home, away) => {
@@ -108,21 +134,85 @@ export function computeKnockoutMatches(results) {
     return w === home ? away : home
   }
 
-  const sf1 = { id: 'KO-SF1', label: 'Halbfinale 1', home: A(1), away: B(2) }
-  const sf2 = { id: 'KO-SF2', label: 'Halbfinale 2', home: B(1), away: A(2) }
+  // --- Eine Gruppe (≤ 3 Teams): Finale aus den Top 2, Rest kampflos platziert.
+  if (groups.length === 1) {
+    const s = computeStandings(groups[0], results)
+    const at = (rank) => s[rank - 1]?.id ?? null
+    const matches = [
+      { id: 'KO-FINAL', label: '🏆 Finale', home: at(1), away: at(2), places: [1, 2] },
+    ]
+    for (let rank = 3; rank <= s.length; rank++) {
+      matches.push({
+        id: `KO-PLACE-${at(rank)}`,
+        label: `Platz ${rank}`,
+        home: at(rank),
+        away: null,
+        bye: true,
+        places: [rank],
+      })
+    }
+    return matches
+  }
 
-  const finalHome = winnerOf('KO-SF1')
-  const finalAway = winnerOf('KO-SF2')
-  const thirdHome = loserOf('KO-SF1', sf1.home, sf1.away)
-  const thirdAway = loserOf('KO-SF2', sf2.home, sf2.away)
+  // --- Zwei Gruppen: Halbfinale über Kreuz, danach Platzierungen je Rang.
+  const A = computeStandings(groups[0], results)
+  const B = computeStandings(groups[1], results)
+  const ar = (rank) => A[rank - 1]?.id ?? null
+  const br = (rank) => B[rank - 1]?.id ?? null
+  const nA = A.length
+  const nB = B.length
 
-  return [
+  const sf1 = { id: 'KO-SF1', label: 'Halbfinale 1', home: ar(1), away: br(2) }
+  const sf2 = { id: 'KO-SF2', label: 'Halbfinale 2', home: br(1), away: ar(2) }
+
+  const matches = [
     sf1,
     sf2,
-    { id: 'KO-FINAL', label: '🏆 Finale', home: finalHome, away: finalAway },
-    { id: 'KO-THIRD', label: '🥉 Spiel um Platz 3', home: thirdHome, away: thirdAway },
-    { id: 'KO-P5', label: 'Platz 5', home: A(3), away: B(3) },
-    { id: 'KO-P7', label: 'Platz 7', home: A(4), away: B(4) },
-    { id: 'KO-P9', label: 'Platz 9', home: A(5), away: B(5) },
+    {
+      id: 'KO-FINAL',
+      label: '🏆 Finale',
+      home: winnerOf('KO-SF1'),
+      away: winnerOf('KO-SF2'),
+      places: [1, 2],
+    },
+    {
+      id: 'KO-THIRD',
+      label: '🥉 Spiel um Platz 3',
+      home: loserOf('KO-SF1', sf1.home, sf1.away),
+      away: loserOf('KO-SF2', sf2.home, sf2.away),
+      places: [3, 4],
+    },
   ]
+
+  // Platzierungsspiele für die übrigen Ränge: A-k gegen B-k (k = 3, 4, …).
+  let place = 5
+  const common = Math.min(nA, nB)
+  for (let rank = 3; rank <= common; rank++) {
+    matches.push({
+      id: `KO-P${place}`,
+      label: `Platz ${place}`,
+      home: ar(rank),
+      away: br(rank),
+      places: [place, place + 1],
+    })
+    place += 2
+  }
+
+  // Hat eine Gruppe ein Team mehr, bekommt dessen Letzter den letzten Platz
+  // kampflos (es gibt keinen Gegner im selben Rang in der anderen Gruppe).
+  if (nA !== nB) {
+    const bigger = nA > nB ? A : B
+    const lastId = bigger[bigger.length - 1].id
+    const lastPlace = nA + nB
+    matches.push({
+      id: `KO-PLACE-${lastId}`,
+      label: `Platz ${lastPlace}`,
+      home: lastId,
+      away: null,
+      bye: true,
+      places: [lastPlace],
+    })
+  }
+
+  return matches
 }

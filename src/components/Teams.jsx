@@ -1,11 +1,10 @@
 import { useState } from 'react'
-import { GROUPS, teamIds } from '../tournament'
-
-const TARGET = 20 // 10 Teams à 2 Spieler
+import { MAX_PLAYERS, MIN_PLAYERS, groupLayout, neededTeams } from '../tournament'
 
 export default function Teams({
   players,
   drawn,
+  groups,
   teams,
   canEdit,
   onAddPlayer,
@@ -56,17 +55,24 @@ export default function Teams({
       )
     }
 
+    const count = players.length
+    const atMax = count >= MAX_PLAYERS
+    const trimmed = input.trim()
     const duplicateHint =
-      input.trim() &&
-      players.some((p) => p.toLowerCase() === input.trim().toLowerCase())
+      trimmed && players.some((p) => p.toLowerCase() === trimmed.toLowerCase())
+
+    const canDraw = count >= MIN_PLAYERS && count <= MAX_PLAYERS
+    const numTeams = neededTeams(count)
+    const layout = groupLayout(numTeams)
+    const oddPlayer = count % 2 === 1
 
     return (
       <div className="teams-setup">
         <div className="teams-card">
           <h2>👥 Spieler eintragen</h2>
           <p className="subtitle">
-            Trage alle <strong>{TARGET}</strong> Mitspieler ein. Anschließend werden daraus
-            zufällig 10 Teams à 2 Spieler ausgelost.
+            Trage die Mitspieler ein (max. <strong>{MAX_PLAYERS}</strong>). Daraus werden
+            zufällig Zweier-Teams ausgelost — bei ungerader Anzahl spielt eine Person allein.
           </p>
 
           <form onSubmit={submit} className="player-add">
@@ -75,22 +81,26 @@ export default function Teams({
               value={input}
               maxLength={24}
               autoFocus
-              placeholder="Name eingeben…"
+              disabled={atMax}
+              placeholder={atMax ? 'Maximum erreicht' : 'Name eingeben…'}
               onChange={(e) => setInput(e.target.value)}
             />
-            <button type="submit" disabled={!input.trim() || duplicateHint}>
+            <button type="submit" disabled={!trimmed || duplicateHint || atMax}>
               + Hinzufügen
             </button>
           </form>
           {duplicateHint && <p className="warn">Diesen Namen gibt es schon.</p>}
+          {atMax && !duplicateHint && (
+            <p className="warn">Maximal {MAX_PLAYERS} Spieler.</p>
+          )}
 
           <div className="player-count">
-            <span className={players.length === TARGET ? 'ok' : ''}>
-              {players.length} / {TARGET} Spieler
+            <span className={canDraw ? 'ok' : ''}>
+              {count} / {MAX_PLAYERS} Spieler
             </span>
           </div>
 
-          {players.length > 0 && (
+          {count > 0 && (
             <ul className="player-pool">
               {players.map((p) => (
                 <li key={p}>
@@ -107,18 +117,18 @@ export default function Teams({
             </ul>
           )}
 
-          <button
-            className="draw-btn"
-            disabled={players.length !== TARGET}
-            onClick={onDraw}
-          >
+          <button className="draw-btn" disabled={!canDraw} onClick={onDraw}>
             🎲 Zufällige Teams auslosen
           </button>
-          {players.length !== TARGET && (
+          {canDraw ? (
             <p className="hint">
-              {players.length < TARGET
-                ? `Noch ${TARGET - players.length} Spieler hinzufügen.`
-                : `${players.length - TARGET} Spieler zu viel — bitte entfernen.`}
+              → {numTeams} Teams in {layout.length === 1 ? 'einer Gruppe' : '2 Gruppen'}
+              {oddPlayer && ', eine Person spielt allein'}.
+            </p>
+          ) : (
+            <p className="hint">
+              Mindestens {MIN_PLAYERS} Spieler nötig
+              {count < MIN_PLAYERS && ` — noch ${MIN_PLAYERS - count}.`}
             </p>
           )}
         </div>
@@ -127,6 +137,8 @@ export default function Teams({
   }
 
   // ---------- Nach der Auslosung: Übersicht (+ Tauschen nur für Admin) ----------
+  const multiGroup = groups.length > 1
+
   return (
     <div className="teams-overview">
       <div className="teams-toolbar">
@@ -141,28 +153,29 @@ export default function Teams({
       </div>
 
       <div className="teams-groups">
-        {GROUPS.map((g) => (
-          <div className="teams-group" key={g}>
-            <h3>Gruppe {g}</h3>
-            {teamIds(g).map((id, idx) => (
+        {groups.map((g) => (
+          <div className="teams-group" key={g.name}>
+            <h3>{multiGroup ? `Gruppe ${g.name}` : 'Alle Teams'}</h3>
+            {g.teamIds.map((id) => (
               <div className="team-card" key={id}>
-                <span className="team-tag">Team {g}{idx + 1}</span>
+                <span className="team-tag">Team {id}</span>
                 <div className="team-players">
-                  {[0, 1].map((slot) =>
+                  {teams[id].map((player, slot) =>
                     canEdit ? (
                       <button
                         key={slot}
                         className={isSelected(id, slot) ? 'player-chip selected' : 'player-chip'}
                         onClick={() => handleChipClick(id, slot)}
                       >
-                        {teams[id][slot]}
+                        {player}
                       </button>
                     ) : (
                       <span key={slot} className="player-chip static">
-                        {teams[id][slot]}
+                        {player}
                       </span>
                     ),
                   )}
+                  {teams[id].length === 1 && <span className="solo-note">spielt allein</span>}
                 </div>
               </div>
             ))}

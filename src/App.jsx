@@ -1,8 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  allTeamIds,
+  MAX_PLAYERS,
+  MIN_PLAYERS,
   computeKnockoutMatches,
+  groupLayout,
+  groupMatches,
   isGroupPhaseComplete,
+  neededTeams,
 } from './tournament'
 import { can, isValidRole } from './users'
 import Login from './components/Login'
@@ -10,7 +14,7 @@ import Teams from './components/Teams'
 import Spielplan from './components/Spielplan'
 import Tabelle from './components/Tabelle'
 
-const STORAGE_KEY = 'bierpong-turnier-v2'
+const STORAGE_KEY = 'bierpong-turnier-v3'
 const AUTH_KEY = 'bierpong-auth-v1'
 
 function loadAuth() {
@@ -31,13 +35,14 @@ function loadState() {
     if (!raw) return null
     const parsed = JSON.parse(raw)
     if (!Array.isArray(parsed.players) || !parsed.teams || !parsed.results) return null
+    if (!Array.isArray(parsed.groups)) parsed.groups = []
     return parsed
   } catch {
     return null
   }
 }
 
-const emptyState = { players: [], drawn: false, teams: {}, results: {} }
+const emptyState = { players: [], drawn: false, groups: [], teams: {}, results: {} }
 
 // Fisher-Yates Shuffle für eine faire Auslosung.
 function shuffle(arr) {
@@ -81,6 +86,7 @@ export default function App() {
     if (!n) return
     setState((prev) => {
       if (prev.drawn) return prev
+      if (prev.players.length >= MAX_PLAYERS) return prev
       if (prev.players.some((p) => p.toLowerCase() === n.toLowerCase())) return prev
       return { ...prev, players: [...prev.players, n] }
     })
@@ -96,13 +102,19 @@ export default function App() {
   const drawTeams = () => {
     if (!mayEditTeams) return
     setState((prev) => {
-      if (prev.drawn || prev.players.length !== 20) return prev
+      const n = prev.players.length
+      if (prev.drawn || n < MIN_PLAYERS || n > MAX_PLAYERS) return prev
       const shuffled = shuffle(prev.players)
+      const groups = groupLayout(neededTeams(n))
       const teams = {}
-      allTeamIds().forEach((id, i) => {
-        teams[id] = [shuffled[i * 2], shuffled[i * 2 + 1]]
+      // Spieler der Reihe nach in Zweier-Teams füllen; ist die Anzahl
+      // ungerade, bekommt das letzte Team nur einen Spieler (spielt allein).
+      groups.flatMap((g) => g.teamIds).forEach((id, i) => {
+        const first = shuffled[i * 2]
+        const second = shuffled[i * 2 + 1]
+        teams[id] = second !== undefined ? [first, second] : [first]
       })
-      return { ...prev, drawn: true, teams, results: {} }
+      return { ...prev, drawn: true, groups, teams, results: {} }
     })
     setTab('teams')
   }
@@ -160,11 +172,19 @@ export default function App() {
 
   const nameOf = (id) => {
     const t = state.teams[id]
-    return t ? `${t[0]} & ${t[1]}` : id
+    if (!t) return id
+    return t.length > 1 ? `${t[0]} & ${t[1]}` : t[0]
   }
 
-  const groupComplete = useMemo(() => isGroupPhaseComplete(state.results), [state.results])
-  const koMatches = useMemo(() => computeKnockoutMatches(state.results), [state.results])
+  const matches = useMemo(() => groupMatches(state.groups), [state.groups])
+  const groupComplete = useMemo(
+    () => isGroupPhaseComplete(state.groups, state.results),
+    [state.groups, state.results],
+  )
+  const koMatches = useMemo(
+    () => computeKnockoutMatches(state.groups, state.results),
+    [state.groups, state.results],
+  )
 
   if (!auth) {
     return <Login onLogin={setAuth} />
@@ -217,6 +237,7 @@ export default function App() {
           <Teams
             players={state.players}
             drawn={state.drawn}
+            groups={state.groups}
             teams={state.teams}
             canEdit={mayEditTeams}
             onAddPlayer={addPlayer}
@@ -227,6 +248,8 @@ export default function App() {
         )}
         {tab === 'spielplan' && (
           <Spielplan
+            groups={state.groups}
+            matches={matches}
             results={state.results}
             nameOf={nameOf}
             groupComplete={groupComplete}
@@ -235,7 +258,12 @@ export default function App() {
           />
         )}
         {tab === 'tabelle' && (
-          <Tabelle results={state.results} nameOf={nameOf} koMatches={koMatches} />
+          <Tabelle
+            groups={state.groups}
+            results={state.results}
+            nameOf={nameOf}
+            koMatches={koMatches}
+          />
         )}
       </main>
     </div>
