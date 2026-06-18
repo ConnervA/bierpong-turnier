@@ -635,9 +635,49 @@ tbody tr.qualified {
   font-size: 0.8rem;
 }
 
+/* ---------- Regeln ---------- */
+.regeln {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.2rem;
+  align-items: start;
+}
+.regel-card {
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  padding: 1.1rem 1.3rem;
+  backdrop-filter: blur(6px);
+}
+.regel-card h2 {
+  font-size: 1.25rem;
+  color: var(--gold-soft);
+  margin-bottom: 0.7rem;
+}
+.regel-card ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.6rem;
+}
+.regel-card li {
+  position: relative;
+  padding-left: 1.4rem;
+  line-height: 1.4;
+  color: var(--text);
+}
+.regel-card li::before {
+  content: '🍺';
+  position: absolute;
+  left: 0;
+  top: 0;
+  font-size: 0.9rem;
+}
+
 /* ---------- Responsive ---------- */
 @media (max-width: 680px) {
-  .groups, .group-tables, .teams-groups {
+  .groups, .group-tables, .teams-groups, .regeln {
     grid-template-columns: 1fr;
   }
 }

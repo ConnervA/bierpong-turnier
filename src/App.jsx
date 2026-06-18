@@ -13,6 +13,7 @@ import Login from './components/Login'
 import Teams from './components/Teams'
 import Spielplan from './components/Spielplan'
 import Tabelle from './components/Tabelle'
+import Regeln from './components/Regeln'
 
 const STORAGE_KEY = 'bierpong-turnier-v3'
 const AUTH_KEY = 'bierpong-auth-v1'
@@ -70,9 +71,10 @@ export default function App() {
 
   const logout = () => setAuth(null)
 
-  // Falls noch nicht ausgelost wurde, bleibt nur der Teams-Reiter aktiv.
+  // Falls noch nicht ausgelost wurde, sind nur Teams und Regeln erreichbar
+  // (Spielplan/Tabelle bleiben bis zur Auslosung gesperrt).
   useEffect(() => {
-    if (!state.drawn && tab !== 'teams') setTab('teams')
+    if (!state.drawn && tab !== 'teams' && tab !== 'regeln') setTab('teams')
   }, [state.drawn, tab])
 
   const role = auth?.role
@@ -230,6 +232,12 @@ export default function App() {
         >
           📊 Tabelle {state.drawn ? '' : '🔒'}
         </button>
+        <button
+          className={tab === 'regeln' ? 'tab active' : 'tab'}
+          onClick={() => setTab('regeln')}
+        >
+          📜 Regeln
+        </button>
       </nav>
 
       <main className="content">
@@ -265,6 +273,7 @@ export default function App() {
             koMatches={koMatches}
           />
         )}
+        {tab === 'regeln' && <Regeln />}
       </main>
     </div>
   )
